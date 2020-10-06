@@ -57,6 +57,10 @@ struct OperatorSampler{N, T <: Real}
     op_indices::Dict{NTuple{N, Int}, Int}
 end
 
+
+# samples operators using a heap
+# based on a blog post by Tim Vieira
+# https://timvieira.github.io/blog/post/2016/11/21/heaps-for-incremental-computation/
 function OperatorSampler(operators::Vector{NTuple{N, Int}}, p::AbstractVector{T}) where {N, T <: Real}
     L = length(p)
     d = 2 ^ ceil(Int, log2(L))
