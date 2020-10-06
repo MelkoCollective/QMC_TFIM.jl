@@ -65,7 +65,7 @@ function init_mc_cli(parsed_args)
 end
 
 
-function make_info_file(info_file, samples_file, mc_opts, observables, corr_time)
+function make_info_file(info_file, samples_file, mc_opts, op_list_length, observables, corr_time)
     M, MCS, EQ_MCS, skip = mc_opts
     mag, abs_mag, mag_sqr, energy = observables
 
@@ -80,7 +80,8 @@ function make_info_file(info_file, samples_file, mc_opts, observables, corr_time
 
             println(io, "Correlation time: $(corr_time)\n")
 
-            println(io, "Operator list length: $(2*M)")
+            println(io, "Initial Operator list length: $(2*M)")
+            println(io, "Final Operator list length: $(op_list_length)")
             println(io, "Number of MC measurements: $(MCS)")
             println(io, "Number of equilibration steps: $(EQ_MCS)")
             println(io, "Number of skips between measurements: $(skip)\n")
@@ -102,7 +103,9 @@ function save_data(path, mc_opts, qmc_state, measurements, observables, corr_tim
 
     @time @save qmc_state_file qmc_state
 
-    make_info_file(info_file, samples_file, mc_opts, observables, corr_time)
+    M = length(qmc_state.operator_list)
+
+    make_info_file(info_file, samples_file, mc_opts, M, observables, corr_time)
 end
 
 
