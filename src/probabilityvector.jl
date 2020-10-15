@@ -5,18 +5,6 @@ firstindex(::AbstractProbabilityVector) = 1
 lastindex(pvec::AbstractProbabilityVector) = length(pvec)
 size(pvec::AbstractProbabilityVector) = (length(pvec),)
 
-# function checkbounds(pvec::AbstractProbabilityVector, i::Int)
-#     if !(firstindex(pvec) <= i <= lastindex(pvec))
-#         throw(BoundsError(pvec, i))
-#     end
-# end
-
-# function checkbounds(pvec::AbstractProbabilityVector, r::AbstractVector{Int})
-#     if any(i -> !(firstindex(pvec) <= i <= lastindex(pvec)), r)
-#         throw(BoundsError(pvec, r))
-#     end
-# end
-
 # more efficient for small probability vectors
 struct ProbabilityVector{T} <: AbstractProbabilityVector{T}
     p::Vector{T}
