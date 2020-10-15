@@ -4,9 +4,9 @@
 # (0, 0) = id
 # (i, j) = diag bond op
 
-function make_prob_vector(J::AbstractMatrix, hx::AbstractVector)
+function make_prob_vector(J::AbstractMatrix{T}, hx::AbstractVector{T}) where T
     ops = Vector{NTuple{2, Int}}(undef, 0)
-    p = Vector{Float64}(undef, 0)
+    p = Vector{T}(undef, 0)
 
     k = 0
     for i in eachindex(hx)
@@ -29,9 +29,9 @@ function make_prob_vector(J::AbstractMatrix, hx::AbstractVector)
     return ops, p
 end
 
-function make_prob_vector(bond_spins::Vector{NTuple{2,Int}}, Ns::Int, J, h)
+function make_prob_vector(bond_spins::Vector{NTuple{2,Int}}, Ns::Int, J::T, h::T) where T
     ops = Vector{NTuple{2, Int}}(undef, 0)
-    p = Vector{Float64}(undef, 0)
+    p = Vector{T}(undef, 0)
 
     if !iszero(h)
         for i in 1:Ns
@@ -51,88 +51,80 @@ function make_prob_vector(bond_spins::Vector{NTuple{2,Int}}, Ns::Int, J, h)
 end
 
 
-struct OperatorSampler{N, T <: Real}
+###################
+
+
+abstract type AbstractOperatorSampler{N, T, P <: AbstractProbabilityVector{T}} end
+firstindex(::AbstractOperatorSampler) = 1
+lastindex(os::AbstractOperatorSampler) = length(os)
+
+
+struct OperatorSampler{N, T, P} <: AbstractOperatorSampler{N, T, P}
     operators::Vector{NTuple{N, Int}}
-    prob_heap::Vector{T}
-    op_indices::Dict{NTuple{N, Int}, Int}
+    pvec::P
 end
 
 
 # samples operators using a heap
 # based on a blog post by Tim Vieira
 # https://timvieira.github.io/blog/post/2016/11/21/heaps-for-incremental-computation/
-function OperatorSampler(operators::Vector{NTuple{N, Int}}, p::AbstractVector{T}) where {N, T <: Real}
-    L = length(p)
-    d = 2 ^ ceil(Int, log2(L))
-
-    heap = zeros(T, 2*d)
-    heap[d : d + L - 1] = p
-
-    @simd for i in (d-1):-1:1
-        heap[i] = heap[2*i] + heap[2*i + 1]
-    end
-
-    op_indices = Dict(op => i for (i, op) in enumerate(operators))
-
-    return OperatorSampler{N, T}(operators, heap, op_indices)
+function OperatorSampler(operators::Vector{NTuple{N, Int}}, p::Vector{T}) where {N, T <: Real}
+    @assert length(operators) == length(p) "Given vectors must have the same length!"
+    pvec = probability_vector(p)
+    return OperatorSampler{N, T, typeof(pvec)}(operators, pvec)
 end
-
-length(os::OperatorSampler) = length(os.operators)
-
-function setindex!(os::OperatorSampler, v::Float64, i::Int)
-    heap = os.prob_heap
-    l = length(heap)
-    j = (l÷2 - 1) + i
-    heap[j] = v
-    while j > 1
-        j ÷= 2
-        heap[j] = heap[2*j] + heap[2*j + 1]
-    end
-end
-
-function getindex(os::OperatorSampler, i::Int)
-    denom = os.prob_heap[1]
-    return os.prob_heap[(length(os.prob_heap) ÷ 2 - 1) + i] / denom
-end
-getindex(os::OperatorSampler{N}, op::NTuple{N, Int}) where N = os[os.op_indices[op]]
-
-function getindex(os::OperatorSampler, r::AbstractArray{Int})
-    denom = os.prob_heap[1]
-    d = (length(os.prob_heap) ÷ 2) - 1
-    return os.prob_heap[d .+ r] / denom
-end
-getindex(os::OperatorSampler{N}, ops::Vector{NTuple{N, Int}}) where N = os[os.op_indices[ops]]
+rand(os::OperatorSampler{N}) where N = @inbounds os.operators[rand(os.pvec)]
+@inline length(os::OperatorSampler) = length(os.operators)
 
 
-firstindex(::OperatorSampler) = 1
-lastindex(os::OperatorSampler) = length(os)
 
-function rand(os::OperatorSampler{N})::NTuple{N, Int} where N
-    heap = os.prob_heap
-    l = length(heap) ÷ 2
-    r = rand() * heap[1]
 
-    i = 1
-    while i < l
-        i *= 2
-        left = heap[i]
-        if r > left
-            r -= left
-            i += 1
+function cluster_probs_vec(operators::Vector{NTuple{N, Int}}, p::AbstractVector{T}) where {N, T <: Real}
+    perm = sortperm(p)
+    p = p[perm]
+    operators = operators[perm]
+
+    uniq_p = T[]
+    uniq_ops = Vector{Vector{NTuple{N, Int}}}(undef, 0)
+
+    for i in axes(p, 1)
+        if length(uniq_p) == 0
+            push!(uniq_p, p[i])
+            push!(uniq_ops, [operators[i]])
+            continue
+        end
+
+        if !(last(uniq_p) ≈ p[i])
+            push!(uniq_p, p[i])
+            push!(uniq_ops, [operators[i]])
+        else
+            push!(uniq_ops[end], operators[i])
         end
     end
-    return os.operators[(i - l + 1)]
+
+    # rescale uniq_p
+    for i in eachindex(uniq_p, uniq_ops)
+        uniq_p[i] *= length(uniq_ops[i])
+    end
+    return uniq_ops, uniq_p
 end
 
 
-# TODO: hierarchical OperatorSampler
-# procedure is essentially:
-# - combine all equal probabilities into one entry (add them together)
-# - make a dictionary, mapping the reduced probability vector's indices to lists
-#     of equiprobable operators
-# - sample from the probability vector using heap sampling, then uniformly
-#     sample from the selected list of operators
-# - useful if there's a lot of equal probabilities
 
-# won't be able to easily update the probabilities (but as it stands, I don't
-# think we're need that functionality)
+struct HierarchicalOperatorSampler{N, T, P} <: AbstractOperatorSampler{N, T, P}
+    operator_bins::Vector{Vector{NTuple{N, Int}}}
+    pvec::P
+end
+
+function HierarchicalOperatorSampler(operators::Vector{NTuple{N, Int}}, p::AbstractVector{T}) where {N, T <: Real}
+    @assert length(operators) == length(p) "Given vectors must have the same length!"
+    operator_bins, p = cluster_probs_vec(operators, p)
+    pvec = probability_vector(p)
+    return HierarchicalOperatorSampler{N, T, typeof(pvec)}(operator_bins, pvec)
+end
+length(os::HierarchicalOperatorSampler) = sum(length, os.operator_bins)
+
+function rand(os::HierarchicalOperatorSampler{N})::NTuple{N, Int} where N
+    @inbounds ops_list = os.operator_bins[rand(os.pvec)]
+    return rand(ops_list)
+end
