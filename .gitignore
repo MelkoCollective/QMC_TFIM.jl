@@ -30,6 +30,8 @@ Untitled*.ipynb
 # Do not commit data files
 data/
 
+# Do not commit benchmark tuning files
+benchmark/tune.json
 
 # vscode data
 .vscode/
