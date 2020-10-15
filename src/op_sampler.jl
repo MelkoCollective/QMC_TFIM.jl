@@ -126,5 +126,7 @@ length(os::HierarchicalOperatorSampler) = sum(length, os.operator_bins)
 
 function rand(os::HierarchicalOperatorSampler{N})::NTuple{N, Int} where N
     @inbounds ops_list = os.operator_bins[rand(os.pvec)]
-    return rand(ops_list)
+    l = rand(1:length(ops_list))
+
+    return @inbounds ops_list[l]
 end
