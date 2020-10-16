@@ -1,9 +1,14 @@
 abstract type AbstractProbabilityVector{T <: Real} <: AbstractVector{T} end
 Base.@propagate_inbounds getindex(pvec::AbstractProbabilityVector, i) = getweight(pvec, i)
 Base.@propagate_inbounds setindex!(pvec::AbstractProbabilityVector, w, i) = setweight!(pvec, w, i)
+Base.@propagate_inbounds setprobability!(pvec::AbstractProbabilityVector{T}, p::T, i::Int) where T = setweight!(pvec, p*normalization(pvec), i)
+Base.@propagate_inbounds getprobability(pvec::AbstractProbabilityVector, i) = getweight(pvec, i) / normalization(pvec)
+
 firstindex(::AbstractProbabilityVector) = 1
 lastindex(pvec::AbstractProbabilityVector) = length(pvec)
 size(pvec::AbstractProbabilityVector) = (length(pvec),)
+
+###############################################################################
 
 # more efficient for small probability vectors
 struct ProbabilityVector{T} <: AbstractProbabilityVector{T}
@@ -11,6 +16,9 @@ struct ProbabilityVector{T} <: AbstractProbabilityVector{T}
     cdf::Vector{T}
 
     function ProbabilityVector{T}(p::Vector{T}) where {T <: Real}
+        if length(p) == 0
+            throw(ArgumentError("probability vector must have non-zero length!"))
+        end
         if any(x -> x < zero(T), p)
             throw(ArgumentError("weights must be non-negative!"))
         end
@@ -20,6 +28,7 @@ struct ProbabilityVector{T} <: AbstractProbabilityVector{T}
 end
 ProbabilityVector(p::Vector{T}) where T = ProbabilityVector{T}(p)
 @inline length(pvec::ProbabilityVector) = length(pvec.p)
+normalization(pvec::ProbabilityVector) = @inbounds pvec.cdf[end]
 
 function show(io::IO, pvec::ProbabilityVector{T}) where T
     r = repr(pvec.p; context=IOContext(io, :limit=>true))
@@ -75,7 +84,6 @@ end
         cdf[j] += diff
     end
 end
-Base.@propagate_inbounds setprobability!(pvec::ProbabilityVector{T}, p::T, i::Int) where T = setweight!(pvec, p*pvec.cdf[end], i)
 
 
 @inline function getweight(pvec::ProbabilityVector, i::Int)
@@ -87,11 +95,9 @@ end
     @boundscheck checkbounds(pvec, r)
     return @inbounds pvec.p[r]
 end
-Base.@propagate_inbounds getprobability(pvec::ProbabilityVector, i) = getweight(pvec, i) / pvec.cdf[end]
 
 
-##############################################################################
-
+###############################################################################
 
 # more efficient for larger probability vectors
 struct ProbabilityHeap{T} <: AbstractProbabilityVector{T}
@@ -99,6 +105,9 @@ struct ProbabilityHeap{T} <: AbstractProbabilityVector{T}
     length::Int
 
     function ProbabilityHeap{T}(p::Vector{T}) where {T <: Real}
+        if length(p) == 0
+            throw(ArgumentError("probability vector must have non-zero length!"))
+        end
         if any(x -> x < zero(T), p)
             throw(ArgumentError("weights must be non-negative!"))
         end
@@ -109,7 +118,7 @@ struct ProbabilityHeap{T} <: AbstractProbabilityVector{T}
         heap = zeros(T, 2*d)
         @inbounds @views heap[d : d + L - 1] = p
 
-        @simd for i in (d-1):-1:1
+        @inbounds for i in (d-1):-1:1
             heap[i] = heap[2*i] + heap[2*i + 1]
         end
 
@@ -118,6 +127,7 @@ struct ProbabilityHeap{T} <: AbstractProbabilityVector{T}
 end
 ProbabilityHeap(p::Vector{T}) where T = ProbabilityHeap{T}(p)
 @inline length(pvec::ProbabilityHeap) = pvec.length
+normalization(pvec::ProbabilityHeap) = @inbounds pvec.prob_heap[1]
 
 function show(io::IO, p::ProbabilityHeap{T}) where T
     heap, L = p.prob_heap, p.length
@@ -159,9 +169,8 @@ end
         heap[j] = heap[2*j] + heap[2*j + 1]
     end
 end
-Base.@propagate_inbounds setprobability!(pvec::ProbabilityHeap{T}, p::T, i::Int) where T = setweight!(pvec, p*pvec.heap[1], i)
 
-@inbounds function getweight(pvec::ProbabilityHeap, i::Int)
+@inline function getweight(pvec::ProbabilityHeap, i::Int)
     @boundscheck checkbounds(pvec, i)
 
     heap = pvec.prob_heap
@@ -178,9 +187,8 @@ end
     @inbounds x = heap[d .+ r]
     return x
 end
-Base.@propagate_inbounds getprobability(pvec::ProbabilityHeap, i) = (@inbounds denom = pvec.prob_heap[1]; getweight(pvec, i) / denom)
 
-##############################################################################
+###############################################################################
 
 
 const CUTOFF = 50
