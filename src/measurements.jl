@@ -8,7 +8,7 @@ function sample(qmc_state::BinaryQMCState)
     M = length(operator_list) ÷ 2
     spin_prop = copy(qmc_state.left_config)
 
-    for op in operator_list[1:M] #propagate half the list only (to the middle)
+    @inbounds for op in operator_list[1:M] #propagate half the list only (to the middle)
         if issiteoperator(op) && !isdiagonal(op)
             spin_prop[op[2]] ⊻= 1 #spinflip
         end
@@ -19,14 +19,14 @@ end
 function simulation_cell(qmc_state::BinaryQMCState)
     operator_list = qmc_state.operator_list
 
-    cell = falses(length(operator_list), length(qmc_state.left_config))
+    cell = falses(length(qmc_state.left_config), length(operator_list))
     spin_prop = copy(qmc_state.left_config)
 
-    for (n, op) in enumerate(operator_list)
+    @inbounds for (n, op) in enumerate(operator_list)
         if issiteoperator(op) && !isdiagonal(op)
             spin_prop[op[2]] ⊻= 1 #spinflip
         end
-        copy!(cell[n, :], spin_prop)
+        copy!(cell[:, n], spin_prop)
     end
     return cell
 end
@@ -47,9 +47,9 @@ function autocorrelation(m::Vector)
     mw = fft(m′)
     s = abs2.(mw)
 
-    chi = real(ifft(s)[1:N])
+    @inbounds chi = real(ifft(s)[1:N])
 
-    for i in 1:N
+    @inbounds for i in 1:N
         chi[i] /= (2*N)  # normalize FFT
         chi[i] /= (N - i - 1)
     end

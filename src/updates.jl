@@ -43,22 +43,10 @@ mc_step_beta!(qmc_state, H, beta; eq = false) = mc_step_beta!((args...) -> nothi
 
 
 # returns true if operator insertion succeeded
-function insert_diagonal_operator!(qmc_state::BinaryQMCState, H::TFIM, spin_prop, n)
-    # rr = rand()
-    # if rr < H.P_h  # probability to choose a single-site operator
-    #     qmc_state.operator_list[n] = (-1, rand(1:H.Ns))
-    #     return true
-    # else
-    #     site1, site2 = H.bond_spin[rand(1:H.Nb)]
-    #     # spins at each end of the bond must be the same
-    #     if spin_prop[site1] == spin_prop[site2]
-    #         qmc_state.operator_list[n] = (site1, site2)
-    #         return true
-    #     end
-    # end
-    site1, site2 = rand(H.op_sampler)
-    if site1 < 0 || spin_prop[site1] == spin_prop[site2]
-        qmc_state.operator_list[n] = (site1, site2)
+function insert_diagonal_operator!(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}, spin_prop::BitArray{N}, n::Int) where N
+    site1, site2 = op = rand(H.op_sampler)
+    @inbounds if issiteoperator(op) || spin_prop[site1] == spin_prop[site2]
+        qmc_state.operator_list[n] = op
         return true
     else
         return false
@@ -68,12 +56,12 @@ end
 
 #############################################################################
 
-function diagonal_update!(qmc_state::BinaryQMCState, H::TFIM)
+function diagonal_update!(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
     spin_prop = copy(qmc_state.left_config)  # the propagated spin state
 
     for (n, op) in enumerate(qmc_state.operator_list)
         if !isdiagonal(op)
-            spin_prop[op[2]] ⊻= 1  # spinflip
+            @inbounds spin_prop[op[2]] ⊻= 1  # spinflip
         else
             success = false
             while !success
@@ -93,17 +81,13 @@ end
 
 nullt = (0, 0, 0)  # a null tuple
 
-function linked_list_update(qmc_state::BinaryQMCState, H::TFIM)
+function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
     Ns = nspins(H)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
 
     len = 2 * Ns
-    for op in qmc_state.operator_list
-        if issiteoperator(op)
-            len += 2
-        else
-            len += 4
-        end
+    @simd for op in qmc_state.operator_list
+        len += ifelse(issiteoperator(op), 2, 4)
     end
 
     # initialize linked list data structures
@@ -199,7 +183,7 @@ end
 
 #############################################################################
 
-function cluster_update!(cluster_data::ClusterData, qmc_state::BinaryQMCState, H::TFIM)
+function cluster_update!(cluster_data::ClusterData, qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
     Ns = nspins(H)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
     operator_list = qmc_state.operator_list
@@ -338,7 +322,7 @@ function linked_list_update_beta(qmc_state::BinaryQMCState, H::TFIM)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
 
     len = 0
-    for op in qmc_state.operator_list
+    @simd for op in qmc_state.operator_list
         if issiteoperator(op)
             len += 2
         elseif isbondoperator(op)
@@ -442,7 +426,7 @@ function linked_list_update_beta(qmc_state::BinaryQMCState, H::TFIM)
          @debug "Basis state propagation error: LINKED LIST"
      end
 
-    return ClusterData(LinkList, LegType, Associates,First,Last)
+    return ClusterData(LinkList, LegType, Associates, First, Last)
 
 end
 

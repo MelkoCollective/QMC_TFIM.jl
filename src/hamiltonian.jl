@@ -14,9 +14,8 @@ end
 
 function TFIM(bond_spin, Dim::Int, Ns::Int, Nb::Int, h::Float64, J::Float64)
     ops, p = make_prob_vector(bond_spin, Ns, J, h)
-    op_sampler = OperatorSampler(ops, p)
-    P_normalization = sum(p)
-    return TFIM{Dim, typeof(op_sampler)}(op_sampler, h, J, P_normalization, Ns, Nb)
+    op_sampler = HierarchicalOperatorSampler(ops, p)
+    return TFIM{Dim, typeof(op_sampler)}(op_sampler, h, J, sum(p), Ns, Nb)
 end
 
 zero(H::Hamiltonian{2}) = falses(nspins(H))
