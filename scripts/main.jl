@@ -59,7 +59,11 @@ function init_mc_cli(parsed_args)
 
     # Ns, Nb = length(lattice), length(bond_spin)
     H = TFIM(bond_spin, Dim, Ns, Nb, h, J)
-    qmc_state = BinaryQMCState(H, M)
+    if haskey(parsed_args, "beta")
+        qmc_state = BinaryThermalState(H, M)
+    else
+        qmc_state = BinaryGroundState(H, M)
+    end
 
     return H, qmc_state, savename(d; digits = 4), mc_opts
 end
