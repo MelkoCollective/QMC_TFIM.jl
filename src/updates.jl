@@ -13,7 +13,7 @@
 @inline isbondoperator(op::NTuple{2,Int}) = (op[1] > 0)
 
 
-function mc_step!(f::Function, qmc_state::BinaryQMCState, H::TFIM)
+function mc_step!(f::Function, qmc_state::BinaryGroundState, H::TFIM)
     diagonal_update!(qmc_state, H)
 
     cluster_data = linked_list_update(qmc_state, H)
@@ -27,7 +27,7 @@ mc_step!(qmc_state, H) = mc_step!((args...) -> nothing, qmc_state, H)
 
 ########################## finite-beta #######################################
 
-function mc_step_beta!(f::Function, qmc_state::BinaryQMCState, H::TFIM, beta::Real; eq::Bool = false)
+function mc_step_beta!(f::Function, qmc_state::BinaryThermalState, H::TFIM, beta::Real; eq::Bool = false)
     num_ops = diagonal_update_beta!(qmc_state, H, beta; eq = eq)
 
     cluster_data = linked_list_update_beta(qmc_state, H)
@@ -43,7 +43,7 @@ mc_step_beta!(qmc_state, H, beta; eq = false) = mc_step_beta!((args...) -> nothi
 
 
 # returns true if operator insertion succeeded
-function insert_diagonal_operator!(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}, spin_prop::BitArray{N}, n::Int) where N
+function insert_diagonal_operator!(qmc_state::BinaryQMCState{N}, H::TFIM{N}, spin_prop::BitArray{N}, n::Int) where N
     site1, site2 = op = rand(H.op_sampler)
     @inbounds if issiteoperator(op) || spin_prop[site1] == spin_prop[site2]
         qmc_state.operator_list[n] = op
@@ -56,7 +56,7 @@ end
 
 #############################################################################
 
-function diagonal_update!(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
+function diagonal_update!(qmc_state::BinaryGroundState{N}, H::TFIM{N}) where N
     spin_prop = copyto!(qmc_state.propagated_config, qmc_state.left_config)  # the propagated spin state
 
     for (n, op) in enumerate(qmc_state.operator_list)
@@ -81,7 +81,7 @@ end
 
 nullt = (0, 0, 0)  # a null tuple
 
-function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
+function linked_list_update(qmc_state::BinaryGroundState{N}, H::TFIM{N}) where N
     Ns = nspins(H)
     spin_left = qmc_state.left_config
 
@@ -186,7 +186,7 @@ end
 
 #############################################################################
 
-function cluster_update!(lsize::Int, qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) where N
+function cluster_update!(lsize::Int, qmc_state::BinaryGroundState{N}, H::TFIM{N}) where N
     Ns = nspins(H)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
     operator_list = qmc_state.operator_list
@@ -263,7 +263,7 @@ end
 #############  FINITE BETA FUNCTIONS BELOW ##################################
 #############################################################################
 
-function diagonal_update_beta!(qmc_state::BinaryQMCState, H::TFIM, beta::Real; eq::Bool = false)
+function diagonal_update_beta!(qmc_state::BinaryThermalState, H::TFIM, beta::Real; eq::Bool = false)
 
     # define the Metropolis probability as a constant
     # https://pitp.phas.ubc.ca/confs/sherbrooke2012/archives/Melko_SSEQMC.pdf
@@ -316,7 +316,7 @@ end
 
 #############################################################################
 
-function linked_list_update_beta(qmc_state::BinaryQMCState, H::TFIM)
+function linked_list_update_beta(qmc_state::BinaryThermalState, H::TFIM)
     Ns = nspins(H)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
 
@@ -431,7 +431,7 @@ end
 
 #############################################################################
 
-function cluster_update_beta!(cluster_data::ClusterData, qmc_state::BinaryQMCState, H::TFIM)
+function cluster_update_beta!(cluster_data::ClusterData, qmc_state::BinaryThermalState, H::TFIM)
     Ns = nspins(H)
     spin_left, spin_right = qmc_state.left_config, qmc_state.right_config
     operator_list = qmc_state.operator_list
