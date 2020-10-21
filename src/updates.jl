@@ -92,7 +92,7 @@ function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) wh
 
     # initialize linked list data structures
     LinkList = @views qmc_state.linked_list[1:len]  # needed for cluster update
-    LegType = falses(len)
+    LegType = @views qmc_state.leg_types[1:len]
 
     # A diagonal bond operator has non trivial associates for cluster building
     Associates = [(0, 0, 0) for _ in 1:len]
@@ -178,7 +178,7 @@ function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) wh
     #     @debug "Basis state propagation error: LINKED LIST"
     # end
 
-    return ClusterData(len, LegType, Associates, nothing)
+    return ClusterData(len, Associates, nothing)
 
 end
 
@@ -191,7 +191,7 @@ function cluster_update!(cluster_data::ClusterData, qmc_state::BinaryQMCState{N,
 
     lsize = cluster_data.len
     LinkList = qmc_state.linked_list
-    LegType = cluster_data.leg_types
+    LegType = qmc_state.leg_types
     Associates = cluster_data.associates
 
     in_cluster = zeros(Int, lsize)
