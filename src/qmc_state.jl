@@ -3,15 +3,6 @@ function init_op_list(length)
     return operator_list
 end
 
-function resize_op_list!(operator_list::Vector{NTuple{2, Int}}, new_size::Int)
-    len = length(operator_list)
-
-    if len < new_size
-        tail = init_op_list(new_size - len)
-        append!(operator_list, tail)
-    end
-end
-
 abstract type AbstractQMCState{D,N} end
 
 abstract type AbstractGroundState{D,N} <: AbstractQMCState{D,N} end
@@ -119,12 +110,3 @@ end
 
 
 const BinaryQMCState{N} = Union{BinaryGroundState{N}, BinaryThermalState{N}}
-
-
-struct ClusterData
-    # linked_list::Vector{Int}
-    # leg_types::BitVector
-    # associates::Vector{NTuple{3,Int}}
-    # first::Vector{Int}
-    last::Union{Vector{Int}, Nothing}
-end
