@@ -18,10 +18,16 @@ struct BinaryQMCState{N,H} <: AbstractQMCState{2,N,H}
     left_config::BitArray{N}
     right_config::BitArray{N}
     operator_list::Vector{NTuple{2,Int}}
+    #linked_list::Vector{Int}
+    first::Vector{Int}
 end
 
 function BinaryQMCState(H::Hamiltonian{2,N}, M::Int) where {N}
-    BinaryQMCState{N,typeof(H)}(zero(H), zero(H), init_op_list(2*M))
+    operator_list = init_op_list(2*M)
+    len = 2*nspins(H) + 4*length(operator_list)
+    #linked_list = zeros(Int, len)
+    first = collect(1:nspins(H))
+    BinaryQMCState{N,typeof(H)}(zero(H), zero(H), operator_list, first)
 end
 
 struct PottsQMCState{D,N,H} <: AbstractQMCState{D,N,H}
@@ -38,8 +44,9 @@ end
 
 struct ClusterData
     linked_list::Vector{Int}
+    len::Int
     leg_types::BitVector
     associates::Vector{NTuple{3,Int}}
-    first::Vector{Int}
+    # first::Vector{Int}
     last::Union{Vector{Int}, Nothing}
 end

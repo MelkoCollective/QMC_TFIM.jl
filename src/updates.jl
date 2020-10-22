@@ -97,19 +97,20 @@ function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) wh
     # A diagonal bond operator has non trivial associates for cluster building
     Associates = [nullt for _ in 1:len]
 
-    First = collect(1:Ns)
+    First = qmc_state.first
     idx = 0
 
     # The first N elements of the linked list are the spins of the LHS basis state
     for i in 1:Ns
         idx += 1
         LegType[idx] = spin_left[i]
+        First[idx] = i
     end
 
     spin_prop = copy(spin_left)  # the propagated spin state
 
     # Now, add the 2M operators to the linked list. Each has either 2 or 4 legs
-    @inbounds for op in qmc_state.operator_list
+    for op in qmc_state.operator_list
         if issiteoperator(op)
             site = op[2]
             # lower or left leg
@@ -177,7 +178,7 @@ function linked_list_update(qmc_state::BinaryQMCState{N, <:TFIM}, H::TFIM{N}) wh
     #     @debug "Basis state propagation error: LINKED LIST"
     # end
 
-    return ClusterData(LinkList, LegType, Associates, First, nothing)
+    return ClusterData(LinkList, len, LegType, Associates, nothing)
 
 end
 
@@ -189,10 +190,9 @@ function cluster_update!(cluster_data::ClusterData, qmc_state::BinaryQMCState{N,
     operator_list = qmc_state.operator_list
 
     LinkList = cluster_data.linked_list
+    lsize = cluster_data.len
     LegType = cluster_data.leg_types
     Associates = cluster_data.associates
-
-    lsize = length(LinkList)
 
     in_cluster = zeros(Int, lsize)
     cstack = Stack{Int}()  # This is the stack of vertices in a cluster
